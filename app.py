@@ -459,7 +459,7 @@ def show_rir(selected_rows, data, house_data, house_id, count_ = count(0)):
             scene_rir_ids.append(inputs["rir_id"])
     threed_fig = create_3d_visualization(scene_rir_paths, scene_rir_ids, house_data)
 
-    loaded_rir = load_rir_from_npy(f"/projects/0/prjs1338/RIRs/{rir_path}")
+    loaded_rir = load_rir_from_npy(f"rirs/{rir_path}")
     processed_audio = convolve_with_rir(loaded_rir, base_audio)
     path = f"assets/convolved_rir_explorer_{deepcopy(count_)}.wav"
     next(count_)
