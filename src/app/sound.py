@@ -74,7 +74,7 @@ def process_audio(sampled_rirs, labels, audio, noise_):
    noise = []
    source = None
    for rir, label in zip(sampled_rirs, labels):
-      rir = load_rir_from_npy(f"/projects/0/prjs1338/RIRs/{os.path.basename(rir)}")
+      rir = load_rir_from_npy(f"rirs/{os.path.basename(rir)}")
       if "noise" in label: 
          convolved_audio = convolve_with_rir(rir, noise_)
          noise.append(convolved_audio)

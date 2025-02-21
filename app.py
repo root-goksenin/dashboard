@@ -514,12 +514,12 @@ def show_rir(selected_rows, data, house_data, house_id, count_ = count(0)):
             ),
     )
 
-    if not os.path.exists(f"backend_plots/{house_id}_{scene_id}.png"):
+    if not os.path.exists(f"plots/{house_id}_{scene_id}.png"):
         subprocess.check_call(["./generate_topdown.sh", str(house_id), str(scene_id)])
     
     import shutil
-    if os.path.exists(f"backend_plots/{house_id}_{scene_id}.png"):
-        shutil.copy(f"backend_plots/{house_id}_{scene_id}.png", f"assets/{house_id}_{scene_id}.png")
+    if os.path.exists(f"plots/{house_id}_{scene_id}.png"):
+        shutil.copy(f"plots/{house_id}_{scene_id}.png", f"assets/{house_id}_{scene_id}.png")
     return path, audio_fig, rir_fig, f"assets/{house_id}_{scene_id}.png", threed_fig
 
 
