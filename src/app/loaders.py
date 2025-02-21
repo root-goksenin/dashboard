@@ -6,7 +6,7 @@ from io import BytesIO
 
 
 def load_json_with_houseid(houseid:str):
-    with open(f"/home/gyuksel3/habitat_folder/dashboard/data/{houseid}.json", "r") as f: 
+    with open(f"data/{houseid}.json", "r") as f: 
         data = json.load(f)
         return data
     
