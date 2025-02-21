@@ -251,52 +251,6 @@ app.layout = dbc.Container([
                                 ], className="g-4"), 
                                 dcc.Graph(id="noise_numbers_g", figure = noise_numbers)
                     ]),
-            dbc.Tab(label='RIR Visualization (^)', tabClassName="flex-grow-1 text-center", children=[
-                dbc.Row([
-                    dbc.Col([                    
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H2("Selected The Source Here", style = {"margin-bottom": "5px"}),
-                                dcc.Dropdown(
-                                    id='source-selector',
-                                    multi=False,
-                                    style = {"margin-bottom": "5px"}
-                                ),
-                                html.Div(id = "noise-selector-div", 
-                                children=[
-                                    html.H2("Selected The Noises Here"),
-                                    dcc.Dropdown(
-                                        id = "noise-selector",
-                                        className="mb-3",
-                                        multi=True,
-                                        options = [],
-                                    ),
-                                    ],
-                                style = {"display": "none", "margin": "5px"}
-                                ),
-                                html.Div(id = "snr-selector-div",
-                                    children = [
-                                        html.H3("SNR in DB (Lower -> More Noisy)"),
-                                        dcc.Slider(
-                                            0, 20, 1,
-                                            value = 10,
-                                            id = "snr-selector")],
-                                    style = {"display": "none", "margin": "5px"}),
-                                dcc.Graph(id='3d-plot'),
-                                html.Div([
-                                    html.H4("Properties of the selected sounds and agent"), 
-                                    html.Div(id = "info_selected", children = []), 
-                                    html.H4("Audio"),
-                                    html.Audio(id='sample_audio', controls=True, src="assets/base_audio.wav")
-                                ]),
-                                html.Div(id='position-info', className="mt-3"),
-                                dcc.Graph(id="audio_graph"),
-                                dcc.Store(id='current-sample')
-                            ])
-                        ], style=CARD_STYLE)
-                    ], lg=8, className="mx-auto")
-                ])
-            ]),
             dbc.Tab(label='RIR Explorer', tabClassName="flex-grow-1 text-center", children=[
                         dash_table.DataTable(
                         id='datatable',
@@ -334,6 +288,7 @@ app.layout = dbc.Container([
 def update_datatable(data):
 
     rows = []
+    house_id = data['house']['id']
     for index, data_region in enumerate(data['sampled_regions']):
         path_1 = os.path.basename(data_region['region']['scene']['source']['rir']['rir_path'])
         scene_id = data_region['region']['seed']
@@ -357,6 +312,8 @@ def update_datatable(data):
 
     columns = ["scene_id", "room_id", "rir_id", "path", "efficency", "radius", "azimuth", "elevation", "agent_azimuth", "agent_elevation", ]
     df = pd.DataFrame(rows, columns=columns)
+    max_seed = max(map(lambda x: int(x.split("_")[-1].replace(".png", "")), glob.glob(f"plots/{house_id}*.png")))
+    df = df[df["scene_id"] <= max_seed]
 
     return df.to_dict('records'), [
             {"name": i, "id": i, "deletable": True, "selectable": True} for i in df.columns
@@ -643,177 +600,6 @@ def update_graph(selected_value):
                         bargap=0.1, 
                         showlegend = False)
     return pie_fig, agent_fig, sound_fig, noise_fig, noise_numbers, data
-
-
-# Count in a clousere not to depend on global variables. 
-# I do not wanna debug to the end my life.
-@app.callback(
-    Output('3d-plot', 'figure'),
-    Output("sample_audio", 'src', allow_duplicate=True),
-    Output("info_selected", "children"),
-    Output('noise-selector-div', 'style'),
-    Output('noise-selector', 'options'),
-    Output("snr-selector-div", "style"),
-    Output("audio_graph", "figure", allow_duplicate=True),
-    Output("convolved_source", "data"),
-    Output("convolved_summed_up_noise", "data"),
-
-
-    Input('source-selector', 'value'), 
-    Input("noise-selector", 'value'),
-    Input('data', 'data'),
-    Input("noise_rirs", 'data'),
-
-    State("source-selector","options"),
-    State("noise-selector","options"),
-
-    prevent_initial_call=True,
-)
-def update_3d_visualization(selected_source, selected_noises, data, noise_options_update, 
-                            options_source, options_noise, count_ = count(0)):
-    # When there is no RIRs that are selected, do not update!
-    path = "assets/base_audio.wav"
-    base_audio, _ = librosa.load(path, sr = 16000)
-    if selected_source is None or len(selected_source) == 0 :
-        fig = create_3d_visualization([], [], data)
-        audio_fig = go.Figure()
-        time = np.arange(0, base_audio.shape[0]) / 16000
-        audio_fig.add_trace(go.Scatter(x=time, y=base_audio,
-                        mode='lines',
-                        name='Mono'))
-        audio_fig.update_layout(
-                title=dict(
-                    text='Audio Graph'
-                ),
-                xaxis=dict(
-                    title=dict(
-                        text='Time in s'
-                    )
-                ),
-                yaxis=dict(
-                    title=dict(
-                        text='Amplitude'
-                    )
-                ),
-        )
-        info_pannel = html.Div(children = [],
-                    style = {"overflow" : "auto", "height" : "200px", "display": "none"})
-        return fig, path, info_pannel, {"display" : "none"}, {}, {"display" : "none"}, audio_fig, None, None
-
-    # If there are RIRs that are selected, update!
-    else:
-        # Finds the selected scene from RIRs 
-        selected_scene = None
-        labels = []
-        children_info = []
-        for x in options_source:
-            if (x['value'] == selected_source):
-                selected_scene, _, _ = get_sampled_region_with_rir(x['value'], data)
-                labels.append(x["label"])
-                children_info.append(html.P(children = [f"Source with azimuth {selected_scene['region']['scene']['source']['azimuth']} and elevation: {selected_scene['region']['scene']['source']['elevation']}",
-                                            html.Br(),
-                                            f"Ray Efficeny of the Source: {selected_scene['region']['scene']['source']['rir']['ray_efficiency']}"]))
-        if selected_noises is not None:
-            for x in options_noise:
-                for noise in selected_noises:
-                    if (x['value'] == noise):
-                        labels.append(x["label"])
-                        index = int(x["label"].replace("noise_", ""))
-                        noise_label = x["label"]
-                        children_info.append(html.P(children = [f"{noise_label} with azimuth {selected_scene['region']['scene']['noise'][index]['azimuth']} and elevation: {selected_scene['region']['scene']['noise'][index]['elevation']}",
-                            html.Br(),
-                            f"Ray Efficeny of {noise_label}: {selected_scene['region']['scene']['noise'][index]['rir']['ray_efficiency']}"]))
-
-        children_info.insert(0, html.P([
-                "Agent with azimuth {} and elevation {}".format(*get_agent_rotation(selected_scene))]))      
-
-        rirs = [selected_source]
-        rirs.extend([] if selected_noises is None else selected_noises)
-        fig = create_3d_visualization(rirs, labels, data)
-        source, noise = process_audio(rirs, labels, base_audio, additional_noise)
-        processed_audio = add_noise(source, noise, snr = 10) if noise is not None else source
-
-        path = f"assets/convolved_{deepcopy(count_)}.wav"
-        next(count_)
-        sf.write(path, processed_audio.T, 16000)
-        # Create the tabs for source and noise 
-        info_pannel = html.Div(children = children_info,
-                              style = {"overflow": "auto", "height" : "200px"})
-        time = np.arange(0, processed_audio.shape[1]) / 16000
-        audio_fig = go.Figure()
-        audio_fig.add_trace(go.Scatter(x=time, y=processed_audio[0, :],
-                        mode='lines',
-                        name='Left Channel'))
-        audio_fig.add_trace(go.Scatter(x=time, y=processed_audio[1, :],
-                        mode='lines',
-                        name='Right Channel'))
-        
-        audio_fig.update_layout(
-                title=dict(
-                    text='Audio Graph'
-                ),
-                xaxis=dict(
-                    title=dict(
-                        text='Time in s'
-                    )
-                ),
-                yaxis=dict(
-                    title=dict(
-                        text='Amplitude'
-                    )
-                ),
-        )
-
-        return fig, path, info_pannel, {"display" : "block"}, noise_options_update[labels[0]], {"display" : "block"}, audio_fig, source, noise
-
-
-
-# Count in a clousere not to depend on global variables. 
-# I do not wanna debug to the end my life.
-@app.callback(
-    Output("sample_audio", 'src'),
-    Output("audio_graph", "figure"),
-
-    Input('snr-selector', 'value'), 
-    Input("convolved_source", 'data'),
-    Input("convolved_summed_up_noise",'data'),
-    prevent_initial_call=True,
-)
-def update_3d_visualization(snr, source, noise, count_ = count(0)):
-    if (source is None) or (noise is None):
-        raise dash.exceptions.PreventUpdate
-
-    processed_audio = add_noise(np.array(source), np.array(noise), snr = snr)
-    path = f"assets/snr_added_{deepcopy(count_)}.wav"
-    next(count_)
-    sf.write(path, processed_audio.T, 16000)
-
-    time = np.arange(0, processed_audio.shape[1]) / 16000
-    audio_fig = go.Figure()
-    audio_fig.add_trace(go.Scatter(x=time, y=processed_audio[0, :],
-                    mode='lines',
-                    name='Left Channel'))
-    audio_fig.add_trace(go.Scatter(x=time, y=processed_audio[1, :],
-                    mode='lines',
-                    name='Right Channel'))
-    
-    audio_fig.update_layout(
-            title=dict(
-                text='Audio Graph'
-            ),
-            xaxis=dict(
-                title=dict(
-                    text='Time in s'
-                )
-            ),
-            yaxis=dict(
-                title=dict(
-                    text='Amplitude'
-                )
-            ),
-    )
-    return path, audio_fig
-
 
 
 if __name__ == "__main__":
