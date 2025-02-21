@@ -821,4 +821,4 @@ if __name__ == "__main__":
     audio, _ = librosa.load("samples/CSrWzBYQ3W0.flac", sr = 16000)
     additional_noise, _ = librosa.load("samples/22ga010i_0.28655_051o020s_-0.28655.wav", sr = 16000)
     sf.write("assets/base_audio.wav", audio, 16000)
-    app.run_server(port = 5000, debug = True, use_reloader = False, dev_tools_hot_reload = False)
+    app.run_server()
