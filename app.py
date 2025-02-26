@@ -35,7 +35,8 @@ from src.data_utils.query_json import (find_category_names,
                                    get_sampled_region_with_rir,
                                    get_agent_rotation,
                                    get_source_efficency,
-                                   get_noise_efficency)
+                                   get_noise_efficency,
+                                   find_rt60s)
 
 
 def flatten(list_of_lists):
@@ -49,6 +50,7 @@ def create_full_data_figure(house_ids):
     efficency_ss = []
     r_noise, azimuth_noise, elevation_noise, nr = [], [], [], []
     efficency_noise = []
+    rt60s = []
     for selected_value in house_ids:
         data = load_json_with_houseid(selected_value)
         categories.append(find_category_names(data))
@@ -67,6 +69,7 @@ def create_full_data_figure(house_ids):
         azimuth_noise.append(azimuth_noise_) 
         nr.append(nr_)
         efficency_noise.append(get_noise_efficency(data))
+        rt60s.append(find_rt60s(data))
     
     counts = Counter(flatten(categories))
     # Category Distribution Pie Chart
@@ -164,7 +167,13 @@ def create_full_data_figure(house_ids):
     noise_numbers.update_layout(create_figure_template("Number of Noise Sources"), 
                         bargap=0.1, 
                         showlegend = False)
-    return pie_fig, agent_fig, sound_fig, noise_fig, noise_numbers
+
+    rt60s_fig = go.Figure()
+    rt60s_fig.add_trace(go.Histogram(x=flatten(rt60s), marker_color='#17becf'))
+    rt60s_fig.update_layout(create_figure_template("RT60 Distribution"), 
+                        bargap=0.1, 
+                        showlegend = False)
+    return pie_fig, agent_fig, sound_fig, noise_fig, noise_numbers, rt60s_fig
 
 # Custom styles
 CARD_STYLE = {
@@ -185,7 +194,7 @@ GRAPH_STYLE = {
 
 house_ids = [os.path.basename(a).replace(".json", "") for a in glob.glob("data/*.json")]
 app = dash.Dash(external_stylesheets=[dbc.themes.JOURNAL])
-pie_fig, agent_fig, sound_fig, noise_fig, noise_numbers = create_full_data_figure(house_ids)
+pie_fig, agent_fig, sound_fig, noise_fig, noise_numbers, rt60_fig = create_full_data_figure(house_ids)
 
 # Layout with improved structure and styling
 app.layout = dbc.Container([
@@ -231,8 +240,9 @@ app.layout = dbc.Container([
                             dbc.Col(dcc.Graph(id="noise_properties"), 
                                     lg=6, className="mb-4")
                         ], className="g-4"), 
+                        dcc.Graph(id="noise_numbers"),
+                        dcc.Graph(id="rt60_figure")
 
-                        dcc.Graph(id="noise_numbers")
             ]),
             dbc.Tab(label='General Statistics', tabClassName="flex-grow-1 text-center",
                     children = [
@@ -249,7 +259,9 @@ app.layout = dbc.Container([
                                     dbc.Col(dcc.Graph(id="noise_properties_g", figure = noise_fig), 
                                             lg=6, className="mb-4")
                                 ], className="g-4"), 
-                                dcc.Graph(id="noise_numbers_g", figure = noise_numbers)
+                                dcc.Graph(id="noise_numbers_g", figure = noise_numbers),
+                                dcc.Graph(id="rt60_figure_g", figure = rt60_fig)
+
                     ]),
             dbc.Tab(label='RIR Explorer', tabClassName="flex-grow-1 text-center", children=[
                         dash_table.DataTable(
@@ -487,6 +499,7 @@ def show_rir(selected_rows, data, house_data, house_id, count_ = count(0)):
     Output('sound_source_properties', 'figure'),
     Output('noise_properties', 'figure'),
     Output('noise_numbers', 'figure'),
+    Output('rt60_figure', 'figure'),
     Output('data', 'data'),
     Input('data-selector', 'value')
 )
@@ -599,7 +612,14 @@ def update_graph(selected_value):
     noise_numbers.update_layout(create_figure_template("Number of Noise Sources"), 
                         bargap=0.1, 
                         showlegend = False)
-    return pie_fig, agent_fig, sound_fig, noise_fig, noise_numbers, data
+
+    rt60s = find_rt60s(data)
+    rt60s_fig = go.Figure()
+    rt60s_fig.add_trace(go.Histogram(x=rt60s, marker_color='#17becf'))
+    rt60s_fig.update_layout(create_figure_template("RT60 Distribution"), 
+                        bargap=0.1, 
+                        showlegend = False)
+    return pie_fig, agent_fig, sound_fig, noise_fig, noise_numbers, rt60s_fig, data
 
 
 if __name__ == "__main__":

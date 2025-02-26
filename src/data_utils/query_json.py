@@ -1,6 +1,14 @@
 import numpy as np 
 import os
 
+def find_rt60s(data):
+    rt60s = []
+    for region in data['sampled_regions']:
+        rt60s.append(region['region']['scene']['source']['rir']['rt60'])
+        for noise in region['region']['scene']['noise']:
+            rt60s.append(noise['rir']['rt60'])
+    return np.array(rt60s)
+            
 def find_area_from_size(size: np.ndarray):
     return size[0] * size[1] * size[2]
 
